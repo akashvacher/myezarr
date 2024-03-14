@@ -1,121 +1,68 @@
 ---
 version: "3.1"
 services:
-  sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
-    container_name: sonarr
+  homer:
+   image: b4bz/homer
+   container_name: homer
+   volumes:
+     - ${ROOT_DIR}/config/homer-config/assets:/www/assets
+   ports:
+     - 8082:8080
+   user: ${UID}:${GID}
+   environment:
+     - INIT_ASSETS=1 
+   restart: unless-stopped
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
     environment:
-      - PUID=13001
-      - PGID=13000
+      - PUID=${UID}
+      - PGID=${GID}
       - UMASK=002
-      - TZ=Europe/Amsterdam
+      - TZ=${TIMEZONE}
     volumes:
-      - /home/user/ezarr/config/sonarr-config:/config
-      - /home/user/ezarr/data:/data
+      - ${ROOT_DIR}/config/jellyfin-config:/config
+      - ${ROOT_DIR}/data/media:/data/media
     ports:
-      - "8989:8989"
+      - 8096:8096
     restart: unless-stopped
 
-  radarr:
-    image: lscr.io/linuxserver/radarr:latest
-    container_name: radarr
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
     environment:
-      - PUID=13002
-      - PGID=13000
+      - WATCHTOWER_CLEANUP=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_HTML=${LOG_HTML:-false}
+      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - TZ=${TIMEZONE}
+    ports:
+      - "${PORT:-8191}:8191"
+    restart: unless-stopped
+
+
+  emby:
+    image: lscr.io/linuxserver/emby:latest
+    container_name: emby
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
       - UMASK=002
-      - TZ=Europe/Amsterdam
+      - TZ=${TIMEZONE}
     volumes:
-      - /home/user/ezarr/config/radarr-config:/config
-      - /home/user/ezarr/data:/data
+      - ${ROOT_DIR}/config/emby-config:/config
+      - ${ROOT_DIR}/data/media:/data/media
     ports:
-      - "7878:7878"
-    restart: unless-stopped
-
-  bazarr:
-    image: lscr.io/linuxserver/bazarr:latest
-    container_name: bazarr
-    environment:
-      - PUID=13012
-      - PGID=13000
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /home/user/ezarr/config/bazarr-config:/config
-      - /home/user/ezarr/data/media:/media
-    ports:
-      - "6767:6767"
-    restart: unless-stopped
-
-  lidarr:
-    image: lscr.io/linuxserver/lidarr:latest
-    container_name: lidarr
-    environment:
-      - PUID=13003
-      - PGID=13000
-      - UMASK=002
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /home/user/ezarr/config/lidarr-config:/config
-      - /home/user/ezarr/data:/data
-    ports:
-      - "8686:8686"
-    restart: unless-stopped
-
-  readarr:
-    image: lscr.io/linuxserver/readarr:develop
-    container_name: readarr
-    environment:
-      - PUID=13004
-      - PGID=13000
-      - UMASK=002
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /home/user/ezarr/config/readarr-config:/config
-      - /home/user/ezarr/data:/data
-    ports:
-      - "8787:8787"
-    restart: unless-stopped
-
-  mylar3:
-    image: lscr.io/linuxserver/mylar3:latest
-    container_name: mylar3
-    environment:
-      - PUID=13005
-      - PGID=13000
-      - UMASK=002
-    volumes:
-      - /home/user/ezarr/config/mylar-config:/config
-      - /home/user/ezarr/data:/data
-    ports:
-      - "8090:8090"
-    restart: unless-stopped
-
-  audiobookshelf:
-    image: ghcr.io/advplyr/audiobookshelf:latest
-    container_name: audiobookshelf
-    environment:
-      - AUDIOBOOKSHELF_UID=13009
-      - AUDIOBOOKSHELF_GID=13000
-    volumes:
-      - /home/user/ezarr/config/audiobookshelf:/config
-      - /home/user/ezarr/data/audiobooks:/audiobooks
-      - /home/user/ezarr/data/podcasts:/podcasts
-      - /home/user/ezarr/data/metadata:/metadata
-    ports:
-      - "13378:80"
-    restart: unless-stopped
-
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr:develop
-    container_name: prowlarr
-    environment:
-      - PUID=13006
-      - PGID=13000
-      - UMASK=002
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /home/user/ezarr/config/prowlarr-config:/config
-    ports:
-      - "9696:9696"
+      - 8097:8096
     restart: unless-stopped
 
   plex:
@@ -123,74 +70,126 @@ services:
     container_name: plex
     network_mode: host
     environment:
-      - PUID=13010
-      - PGID=13000
+      - PUID=${UID}
+      - PGID=${GID}
       - VERSION=docker
       - PLEX_CLAIM=
     volumes:
-      - /home/user/ezarr/config/plex-config:/config
-      - /home/user/ezarr/data/media:/media
+      - ${ROOT_DIR}/config/plex-config:/config
+      - ${ROOT_DIR}/data/media/movies:/movies
+      - ${ROOT_DIR}/data/media/tv:/tv
     restart: unless-stopped
-
-  tautulli:
-    image: lscr.io/linuxserver/tautulli:latest
-    container_name: tautulli
-    depends_on:
-      - plex
+    #
+    #   dim:
+    #     image: ghcr.io/dusk-labs/dim:dev
+    #     container_name: dim
+    #     ports:
+    #       - 8000:8000
+    #     volumes:
+    #       - ${ROOT_DIR}/config/dim-config:/opt/dim/config
+    #       - ${ROOT_DIR}/data/media:/data/media
+    #     restart: unless-stopped
+    #
+#
+# SERVARR
+#
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+      # cpus: 0.3
     environment:
       - PUID=${UID}
-      - PGID=13000
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /home/user/ezarr/config/tautulli-config:/config
-    ports:
-      - "8181:8181"
-    restart: unless-stopped
-
-  jellyfin:
-    image: lscr.io/linuxserver/jellyfin:latest
-    container_name: jellyfin
-    environment:
-      - PUID=${UID}
-      - PGID=13000
+      - PGID=${GID}
       - UMASK=002
-      - TZ=Europe/Amsterdam
+      - TZ=${TIMEZONE}
     volumes:
-      - /home/user/ezarr/config/jellyfin-config:/config
-      - /home/user/ezarr/data/media:/data
+      - ${ROOT_DIR}/config/radarr-config:/config
+      - ${ROOT_DIR}/data:/data
     ports:
-      - "8096:8096"
+      - 7878:7878
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+      # cpus: 0.3
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - UMASK=002
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${ROOT_DIR}/config/sonarr-config:/config
+      - ${ROOT_DIR}/data:/data
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:develop
+    container_name: prowlarr
+    cpus: 0.3
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - UMASK=002
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${ROOT_DIR}/config/prowlarr-config:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    cpus: 0.3
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${ROOT_DIR}/config/bazarr-config:/config
+      - ${ROOT_DIR}/data:/data
+    ports:
+      - 6767:6767
     restart: unless-stopped
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
-    environment:
-      - PUID=13007
-      - PGID=13000
-      - UMASK=002
-      - TZ=Europe/Amsterdam
-      - WEBUI_PORT=8080
-    volumes:
-      - /home/user/ezarr/config/qbittorrent-config:/config
-      - /home/user/ezarr/data/torrents:/data/torrents
+    image: ghcr.io/hotio/qbittorrent
     ports:
       - "8080:8080"
-      - "6881:6881"
-      - "6881:6881/udp"
+      - "8118:8118"
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - UMASK=002
+      - TZ=${TIMEZONE}
+      - VPN_ENABLED=true
+      - VPN_LAN_NETWORK
+      - VPN_CONF=wg0
+      - VPN_ADDITIONAL_PORTS
+      - VPN_IP_CHECK_DELAY=5
+      - PRIVOXY_ENABLED=false
+    volumes:
+      - ${ROOT_DIR}/config/qbittorrent-config:/config
+      - ${ROOT_DIR}/data/torrents:/data/torrents
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.disable_ipv6=1
     restart: unless-stopped
 
-  sabnzbd:
-    image: lscr.io/linuxserver/sabnzbd:latest
-    container_name: sabnzbd
-    environment:
-      - PUID=13011
-      - PGID=13000
-      - UMASK=002
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /home/user/ezarr/config/sabnzbd-config:/config
-      - /home/user/ezarr/data/usenet:/data/usenet
+  filebrowser:
+    image: filebrowser/filebrowser:v2-alpine
+    container_name: filebrowser
     ports:
-      - "8081:8080"
+      - '8081:80'
+    volumes:
+      - ${ROOT_DIR}/data/:/srv
+    command:
+      - '--noauth'  # Since we are using auth in Caddyfile instead
     restart: unless-stopped
+
